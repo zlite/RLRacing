@@ -1,6 +1,7 @@
 import numpy as np
 import pygame
 
+
 class RaceTrackEnv:
     def __init__(self):
         pygame.init()
