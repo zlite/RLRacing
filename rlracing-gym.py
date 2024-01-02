@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse, Rectangle
 import gym.utils.seeding
 
+
 class RaceTrackEnv(gym.Env):
     metadata = {'render.modes': ['human']}
 
@@ -27,10 +28,17 @@ class RaceTrackEnv(gym.Env):
         self.np_random, seed = gym.utils.seeding.np_random(seed)
         return [seed]
     
-    def reset(self):
+    def _get_observation(self):
+    # Construct and return the observation
+    # Example: if observation is just the car's position and angle
+       return np.array(self.car_position + [self.car_angle])
+
+    def reset(self, **kwargs):  # Accept arbitrary keyword arguments
         self.car_position = [self.oval_center[0], self.oval_center[1] - self.oval_axes[1] + self.track_width]
         self.car_angle = 0
-        return self._get_observation()
+
+        initial_observation = self._get_observation()
+        return initial_observation  # This should only be the initial observation
 
     def step(self, action):
         if action == 0:  # Turn left
@@ -82,7 +90,8 @@ class RaceTrackEnv(gym.Env):
         # Return the car's x, y coordinates and heading
         return np.array(self.car_position + [self.car_angle])
 
-# Example usage
+# Example usage:
+    
 # env = RaceTrackEnv()
 # env.reset()
 # for _ in range(1000):
@@ -93,14 +102,29 @@ class RaceTrackEnv(gym.Env):
 #         env.reset()
 # env.close()
     
+# debugging test:
+    
+env = RaceTrackEnv()
+obs = env.reset()
+print("Initial Observation:", obs)
+
+for _ in range(10):
+    action = env.action_space.sample()
+    obs, reward, done, info = env.step(action)
+    print("Observation:", obs, "Reward:", reward, "Done:", done)
+
+exit()
+
 #training example    
 from stable_baselines3 import DQN
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.evaluation import evaluate_policy
+from stable_baselines3.common.monitor import Monitor
 
 
 # Create the Gym environment
 env = RaceTrackEnv()
+monitored_env = Monitor(env)
 
 # Wrap it if necessary (vectorized environments allow for parallel computation)
 vec_env = make_vec_env(lambda: env, n_envs=1)
@@ -115,8 +139,35 @@ model.learn(total_timesteps=int(1e5))
 model.save("dqn_racetrack")
 
 # Evaluate the trained agent
-mean_reward, std_reward = evaluate_policy(model, env, n_eval_episodes=10)
+mean_reward, std_reward = evaluate_policy(model, monitored_env, n_eval_episodes=10)
 print(f"Mean reward: {mean_reward}, Std reward: {std_reward}")
 
 # Remember to close the environment when done
+monitored_env.close()
 env.close()
+
+
+#testing example:
+
+from stable_baselines3 import DQN
+import matplotlib.pyplot as plt
+
+# Load the trained model
+model = DQN.load("dqn_racetrack")
+
+# Create and wrap your environment
+env = RaceTrackEnv()
+monitored_env = Monitor(env)
+
+# Run the model in the environment
+obs = monitored_env.reset()
+done = False
+while not done:
+    action, _states = model.predict(obs, deterministic=True)
+    obs, rewards, done, info = monitored_env.step(action)
+    monitored_env.render()
+    if done:
+        obs = monitored_env.reset()
+
+# Close the environment
+monitored_env.close()
