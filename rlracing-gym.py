@@ -3,6 +3,7 @@ from gym import spaces
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse, Rectangle
+import gym.utils.seeding
 
 class RaceTrackEnv(gym.Env):
     metadata = {'render.modes': ['human']}
@@ -22,6 +23,10 @@ class RaceTrackEnv(gym.Env):
 
         self.fig, self.ax = plt.subplots()
 
+    def seed(self, seed=None):
+        self.np_random, seed = gym.utils.seeding.np_random(seed)
+        return [seed]
+    
     def reset(self):
         self.car_position = [self.oval_center[0], self.oval_center[1] - self.oval_axes[1] + self.track_width]
         self.car_angle = 0
@@ -78,12 +83,40 @@ class RaceTrackEnv(gym.Env):
         return np.array(self.car_position + [self.car_angle])
 
 # Example usage
+# env = RaceTrackEnv()
+# env.reset()
+# for _ in range(1000):
+#     action = env.action_space.sample()
+#     obs, reward, done, info = env.step(action)
+#     env.render()
+#     if done:
+#         env.reset()
+# env.close()
+    
+#training example    
+from stable_baselines3 import DQN
+from stable_baselines3.common.env_util import make_vec_env
+from stable_baselines3.common.evaluation import evaluate_policy
+
+
+# Create the Gym environment
 env = RaceTrackEnv()
-env.reset()
-for _ in range(1000):
-    action = env.action_space.sample()
-    obs, reward, done, info = env.step(action)
-    env.render()
-    if done:
-        env.reset()
+
+# Wrap it if necessary (vectorized environments allow for parallel computation)
+vec_env = make_vec_env(lambda: env, n_envs=1)
+
+# Instantiate the agent
+model = DQN('MlpPolicy', vec_env, verbose=1, learning_rate=1e-4, buffer_size=10000, learning_starts=1000, batch_size=32)
+
+# Train the agent
+model.learn(total_timesteps=int(1e5))
+
+# Save the model
+model.save("dqn_racetrack")
+
+# Evaluate the trained agent
+mean_reward, std_reward = evaluate_policy(model, env, n_eval_episodes=10)
+print(f"Mean reward: {mean_reward}, Std reward: {std_reward}")
+
+# Remember to close the environment when done
 env.close()
